@@ -1,2 +1,2 @@
-# multi-agent-systems
-Multi-Agent Systems - UvA MSc (AI+CS)
+# Multi-Agent Systems
+###### Assignments - UvA MSc (AI+CS)
