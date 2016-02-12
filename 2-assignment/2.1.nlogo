@@ -26,7 +26,6 @@ to setup
   setup-patches
   setup-turtles
   setup-ticks
-  reset-ticks
 end
 
 
@@ -62,6 +61,7 @@ end
 ; --- Setup ticks ---
 to setup-ticks
   ; In this method you may start the tick counter.
+  reset-ticks
 end
 
 
