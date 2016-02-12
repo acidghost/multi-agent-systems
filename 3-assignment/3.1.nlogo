@@ -68,9 +68,6 @@ to setup-patches
   set total_dirty round ( (dirt_pct / 100) * ( count patches ) )
   ask patches [ set pcolor white ]
   ask n-of total_dirty patches [ set pcolor gray ]
-  if ([pcolor] of patch min-pxcor min-pycor = black) [
-    ask patch min-pxcor min-pycor [ set pcolor white ]
-  ]
 end
 
 
