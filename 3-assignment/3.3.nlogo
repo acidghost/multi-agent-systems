@@ -146,7 +146,7 @@ to update-intentions
     if-else desire = "clean-dirt" and length beliefs > 0 [
       if-else dirt_in_bag = bag_capacity [
         set intention [ list xcor ycor ] of garbage-can 1
-        if [xcor] of garbage-can 1 = xcor and [ycor] of garbage-can 1 = ycor [
+        if distance garbage-can 1 < 1 [
           set intention "empty-bag"
         ]
       ] [
@@ -163,7 +163,7 @@ end
 to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving and cleaning (and in Assignment 3.3, throwing away dirt).
   ask vacuums [
-    if-else desire = "clean-dirt" [
+    if-else intention != 0 [
       if-else intention = "empty-bag" [
         set dirt_in_bag 0
         set color yellow
@@ -349,6 +349,17 @@ bag_capacity
 1
 NIL
 HORIZONTAL
+
+MONITOR
+11
+387
+89
+432
+Dirt in bag
+[dirt_in_bag] of vacuum 0
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
