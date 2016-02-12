@@ -36,8 +36,9 @@ to go
   ; For Assignment 2, this only involves the execution of actions (and advancing the tick counter).
   execute-actions
   tick
-  if any? turtles with [xcor = 2 and ycor = 2] and [pcolor] of patch 2 2 = black
-  [ask turtles [set color white ] stop]
+  if any? turtles with [xcor = 2 and ycor = 2] and [pcolor] of patch 2 2 = black [
+    ask turtles [set color white ] stop
+  ]
 end
 
 
@@ -77,8 +78,7 @@ to move-robot
       set pcolor black
       fd 0
       set color red
-      ]
-    [
+    ] [
       set color white
       if xcor = 2 and ycor = 1 [ setxy 2 2 ]
       if xcor = 2 and ycor = 0 [ setxy 2 1 ]
@@ -88,18 +88,18 @@ to move-robot
       if xcor = 0 and ycor = 2 [ setxy 1 2 facexy 1 1 ]
       if xcor = 0 and ycor = 1 [ setxy 0 2 ]
       if xcor = 0 and ycor = 0 [ setxy 0 1 ]
-      ]
     ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
 455
-194
+221
 -1
 -1
-51.33333333333334
+60.0
 1
 10
 1
