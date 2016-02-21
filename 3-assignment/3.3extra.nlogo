@@ -20,7 +20,7 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time]
+globals [total_dirty time cleaned_dirt]
 
 
 ; --- Agents ---
@@ -43,6 +43,7 @@ patches-own [dirt_value]
 ; --- Setup ---
 to setup
   set time 0
+  set cleaned_dirt 0
   clear-all
   setup-patches
   setup-vacuums
@@ -80,7 +81,7 @@ to setup-vacuums
     setxy min-pxcor min-pycor
     facexy min-pxcor min-pycor + 1
     set color blue
-    set beliefs [list pxcor pycor] of patches
+    set beliefs [(list pxcor pycor dirt_value)] of patches
     set dirt_in_bag 0
     set battery total_battery
   ]
@@ -125,19 +126,19 @@ to update-beliefs
   ; In Assignment 3.3, your agent also needs to know where is the garbage can.
   ask vacuums [
     foreach beliefs [
-      if [pcolor] of patch first ? last ? = white [
+      if [pcolor] of patch first ? item 1 ? = white [
         set beliefs remove ? beliefs
       ]
     ]
-    set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
+    set beliefs sort-by [ point-distance first ?1 item 1 ?1 last ?1 first ?2 item 1 ?2 last ?2 xcor ycor ] beliefs
   ]
 
 end
 
 
 ; tells wether the patch x1, y1 is closer to the agent position (represented by xa and ya) than the patch at x2, y2
-to-report point-distance [x1 y1 x2 y2 xa ya]
-  report sqrt ( (x1 - xa) ^ 2 + (y1 - ya) ^ 2 ) < sqrt ( (x2 - xa) ^ 2 + (y2 - ya) ^ 2 )
+to-report point-distance [x1 y1 v1 x2 y2 v2 xa ya]
+  report sqrt ( (x1 - xa) ^ 2 + (y1 - ya) ^ 2 ) - (dirt_multiplier * v1) < sqrt ( (x2 - xa) ^ 2 + (y2 - ya) ^ 2 ) - (dirt_multiplier * v2)
 end
 
 
@@ -171,16 +172,17 @@ to execute-actions
         set dirt_in_bag 0
         set color yellow
       ] [
-        if-else pxcor = first intention and pycor = last intention and pcolor = gray [                      ; change this
+        if-else pxcor = first intention and pycor = item 1 intention and pcolor = gray [                      ; change this
           ; suck dirt
           set pcolor white
           set color red
           set total_dirty total_dirty - 1
           set dirt_in_bag dirt_in_bag + 1
+          set cleaned_dirt cleaned_dirt + last intention
         ] [
           ; go towards objective
           set color blue
-          facexy first intention last intention
+          facexy first intention item 1 intention
           forward 1
           set battery battery - 1
         ]
@@ -194,11 +196,11 @@ end
 GRAPHICS-WINDOW
 782
 17
-1132
-388
-12
-12
-13.6
+1399
+655
+13
+13
+22.5
 1
 10
 1
@@ -208,10 +210,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--12
-12
--12
-12
+-13
+13
+-13
+13
 1
 1
 1
@@ -366,10 +368,10 @@ Dirt in bag
 11
 
 SLIDER
-150
-416
-322
-449
+181
+428
+353
+461
 total_battery
 total_battery
 0
@@ -390,6 +392,32 @@ battery left
 17
 1
 11
+
+MONITOR
+510
+433
+599
+478
+NIL
+cleaned_dirt
+17
+1
+11
+
+SLIDER
+185
+387
+357
+420
+dirt_multiplier
+dirt_multiplier
+0
+5
+0
+0.1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
