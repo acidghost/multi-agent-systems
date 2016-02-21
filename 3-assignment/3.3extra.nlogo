@@ -413,7 +413,7 @@ dirt_multiplier
 dirt_multiplier
 0
 5
-0
+3
 0.1
 1
 NIL
