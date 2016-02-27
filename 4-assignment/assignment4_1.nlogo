@@ -24,13 +24,14 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time color_list k]
+globals [total_dirty time color_list k k0]
 
 
 ; --- Agents ---
 ; The following types of agent (called 'breeds' in NetLogo) are given.
 ;
 ; 1) vacuums: vacuum cleaner agents.
+breed [sensors sensor]
 breed [vacuums vacuum]
 
 
@@ -48,8 +49,8 @@ vacuums-own [beliefs desire intention own_color]
 to setup
   set time 0
   clear-all
-  set time 0
   setup-patches
+  setup-sensors
   setup-vacuums
   setup-ticks
 end
@@ -81,6 +82,21 @@ to setup-patches
 
 end
 
+to set-transparency [new-transparency]
+  ifelse is-list? color
+     [ set color lput (255 - new-transparency) sublist color 0 3 ]
+     [ set color lput (255 - new-transparency) extract-rgb color ]
+end
+
+to setup-sensors
+  ask patches [
+    sprout-sensors 1 [
+      set shape "star"
+      set color white
+      set-transparency 180
+    ]
+  ]
+end
 
 ; --- Setup vacuums ---
 to setup-vacuums
@@ -90,15 +106,18 @@ to setup-vacuums
     facexy min-pxcor min-pycor + 1
     set color red
   ]
-  set k 0
-  while [k < num_agents][
-    ask vacuum(k) [
-      set own_color item k color_list
+  set k0 length [pcolor] of patches
+  set k k0
+  while [k < num_agents + k0][
+    ask vacuum k [
+      let i k - k0
+      let c item i color_list
+      set own_color item i color_list
       set color own_color
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = item k color_list]]
-    set k k + 1 ]
-
-
+      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
+    ]
+    set k k + 1
+  ]
 end
 
 
@@ -128,12 +147,11 @@ end
 to update-beliefs
  ; You should update your agent's beliefs here.
  ; Please remember that you should use this method whenever your agents changes its position.
-  set k 0
-  while [k < num_agents][
+  set k k0
+  while [k < num_agents + k0][
     ask vacuum(k) [
-      set own_color item k color_list
-
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = item k color_list]
+      let c own_color
+      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
       set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs]
     set k k + 1
   ]
