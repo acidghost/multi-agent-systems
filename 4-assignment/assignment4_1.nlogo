@@ -60,11 +60,11 @@ end
 to go
   ; This method executes the main processing cycle of an agent.
   ; For Assignment 4.1, this involves updating desires, beliefs and intentions, and executing actions (and advancing the tick counter).
+  clear-links
   update-beliefs
   update-desires
   update-intentions
   execute-actions
-  clean-links
   tick
   set time time + 1
 end
@@ -94,7 +94,7 @@ to setup-sensors
     sprout-sensors 1 [
       set shape "star"
       set color white
-      set-transparency 180
+      set-transparency 255
     ]
   ]
 end
@@ -154,7 +154,10 @@ to update-beliefs
       let c own_color
       set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
       ask sensors in-radius vision_radius [
-        create-link-to vacuum(k) [ set color c ]
+        create-link-to vacuum(k) [
+          set color c
+          set-transparency 50
+        ]
       ]
       set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs]
     set k k + 1
@@ -320,7 +323,7 @@ vision_radius
 vision_radius
 0
 100
-12
+5
 1
 1
 NIL
