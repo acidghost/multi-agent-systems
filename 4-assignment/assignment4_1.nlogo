@@ -64,6 +64,7 @@ to go
   update-desires
   update-intentions
   execute-actions
+  clean-links
   tick
   set time time + 1
 end
@@ -152,6 +153,9 @@ to update-beliefs
     ask vacuum(k) [
       let c own_color
       set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
+      ask sensors in-radius vision_radius [
+        create-link-to vacuum(k) [ set color c ]
+      ]
       set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs]
     set k k + 1
   ]
