@@ -365,7 +365,7 @@ num_agents
 num_agents
 2
 7
-2
+5
 1
 1
 NIL

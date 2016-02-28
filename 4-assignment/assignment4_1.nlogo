@@ -24,15 +24,15 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time color_list k k0]
+globals [total_dirty time color_list]
 
 
 ; --- Agents ---
 ; The following types of agent (called 'breeds' in NetLogo) are given.
 ;
 ; 1) vacuums: vacuum cleaner agents.
-breed [sensors sensor]
 breed [vacuums vacuum]
+breed [sensors sensor]
 
 
 ; --- Local variables ---
@@ -50,8 +50,8 @@ to setup
   set time 0
   clear-all
   setup-patches
-  setup-sensors
   setup-vacuums
+  setup-sensors
   setup-ticks
 end
 
@@ -77,7 +77,7 @@ to setup-patches
   set color_list [green blue orange yellow violet magenta cyan]
   set total_dirty round ((dirt_pct / (100 * num_agents)) * ( count patches))
   ask patches [ set pcolor white]
-  set k  0
+  let k  0
   while [k < num_agents] [
     ask n-of total_dirty patches with [pcolor = white] [ set pcolor item k color_list]
     set k k + 1
@@ -110,19 +110,15 @@ to setup-vacuums
     set color red
   ]
 
-  set k0 count patches
-  set k k0
-  while [k < num_agents + k0][
+  let k 0
+  while [k < num_agents][
     ask vacuum k [
-      let i k - k0
-      let c item i color_list
-      set own_color item i color_list
+      set own_color item k color_list
       set color own_color
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
+      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = [own_color] of myself]
     ]
     set k k + 1
   ]
-
 end
 
 ; --- Setup ticks ---
