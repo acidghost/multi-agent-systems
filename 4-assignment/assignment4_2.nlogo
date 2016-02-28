@@ -177,9 +177,6 @@ to update-beliefs
     set outgoing_messages (list)
     foreach other_colors [
       let messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
-      foreach sent_messages [
-        set messages remove ? messages
-      ]
       set outgoing_messages sentence outgoing_messages messages
     ]
   ]
