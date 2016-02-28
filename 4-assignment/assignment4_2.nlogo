@@ -24,13 +24,14 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time color_list k all_messages]
+globals [total_dirty time color_list all_messages]
 
 
 ; --- Agents ---
 ; The following types of agent (called 'breeds' in NetLogo) are given.
 ;
 ; 1) vacuums: vacuum cleaner agents.
+breed [sensors sensor]
 breed [vacuums vacuum]
 
 
@@ -52,6 +53,7 @@ to setup
   set time 0
   clear-all
   setup-patches
+  setup-sensors
   setup-vacuums
   setup-ticks
 end
@@ -61,13 +63,14 @@ end
 to go
   ; This method executes the main processing cycle of an agent.
   ; For Assignment 4.2 and 4.3, this involves updating desires, beliefs and intentions, executing actions, and sending messages (and advancing the tick counter).
+  clear-links
   update-beliefs
   update-desires
   update-intentions
   execute-actions
   send-messages
-  set time time + 1
   tick
+  set time time + 1
 end
 
 
@@ -77,11 +80,29 @@ to setup-patches
   set color_list [green blue orange yellow violet magenta cyan]
   set total_dirty round ((dirt_pct / (100 * num_agents)) * ( count patches))
   ask patches [ set pcolor white]
-  set k  0
-  while [k < num_agents  ] [
+  let k  0
+  while [k < num_agents] [
     ask n-of total_dirty patches with [pcolor = white] [ set pcolor item k color_list]
-    set k k + 1]
+    set k k + 1
+  ]
+end
 
+
+to set-transparency [new-transparency]
+  ifelse is-list? color
+     [ set color lput (255 - new-transparency) sublist color 0 3 ]
+     [ set color lput (255 - new-transparency) extract-rgb color ]
+end
+
+
+to setup-sensors
+  ask patches [
+    sprout-sensors 1 [
+      set shape "star"
+      set color white
+      set-transparency 255
+    ]
+  ]
 end
 
 
@@ -93,15 +114,17 @@ to setup-vacuums
     facexy min-pxcor min-pycor + 1
     set color red
   ]
-  set k 0
-  while [k < num_agents][
+  let k0 count sensors
+  let k k0
+  while [k < num_agents + k0][
     ask vacuum(k) [
-      set own_color item k color_list
+      set own_color item (k - k0) color_list
       set color own_color
       set other_colors sublist color_list 0 num_agents
       set other_colors remove own_color other_colors
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = item k color_list]]
-    set k k + 1 ]
+      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = [own_color] of vacuum(k)]]
+    set k k + 1
+  ]
 end
 
 
@@ -131,19 +154,30 @@ to update-beliefs
  ; You should update your agent's beliefs here.
  ; Please remember that you should use this method whenever your agents changes its position.
  ; Also note that this method should distinguish between two cases, namely updating beliefs based on 1) observed information and 2) received messages.
-  set k 0
-  while [k < num_agents][
-    ask vacuum(k) [
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = item k color_list]
-      if incoming_messages != 0 [set beliefs sentence beliefs incoming_messages]
-      set incoming_messages 0
-      set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
-      foreach other_colors [
-        set outgoing_messages sentence outgoing_messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])]
-      set outgoing_messages but-first outgoing_messages
-    set k k + 1
-  ]]
+  ask vacuums [
+    let vac_color own_color
+    set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
+    if incoming_messages != 0 [set beliefs sentence beliefs incoming_messages]
+    set incoming_messages 0
+    set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
+
+    if show_radius [
+      let vac self
+      ask sensors in-radius vision_radius [
+        create-link-to vac [
+          set color vac_color
+          set-transparency 50
+        ]
+      ]
+    ]
+
+    foreach other_colors [
+      set outgoing_messages sentence outgoing_messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
+    ]
+    set outgoing_messages but-first outgoing_messages
+  ]
 end
+
 
 ; tells wether the patch x1, y1 is closer to the agent position (represented by xa and ya) than the patch at x2, y2
 to-report point-distance [x1 y1 x2 y2 xa ya]
@@ -154,11 +188,10 @@ end
 ; --- Update intentions ---
 to update-intentions
   ; You should update your agent's intentions here.
-    ask vacuums [
+  ask vacuums [
     if-else desire = "clean-dirt" and length beliefs > 0 [
         set intention first beliefs
-      ]
-     [
+    ] [
       set intention list random-xcor random-ycor
     ]
   ]
@@ -169,47 +202,45 @@ end
 to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving, cleaning, and (actively) looking around.
   ; Please note that your agents should perform only one action per tick!
-    ask vacuums [
-
+  ask vacuums [
     if-else desire = "clean-dirt" [
       if-else pxcor = first intention and pycor = last intention and pcolor = own_color [
         set pcolor white
         set color black
-        set total_dirty total_dirty - 1]
-      [facexy first intention last intention
+        set total_dirty total_dirty - 1
+      ] [
+        facexy first intention last intention
+        forward 1
+        set color own_color
+      ]
+    ] [
+      facexy first intention last intention
       forward 1
-      set color own_color]]
-    [facexy first intention last intention
-      forward 1
-      set color own_color]
+      set color own_color
+    ]
   ]
 end
 
 
 ; --- Send messages ---
+; Here should put the code related to sending messages to other agents.
+; Note that this could be seen as a special case of executing actions, but for conceptual clarity it has been put in a separate method.
 to send-messages
-    set k 0
-  while [k < num_agents] [
-    ask vacuum(k) [
-      set all_messages sentence all_messages outgoing_messages]
-    set k k + 1
-  ]
+  ask vacuums [ set all_messages sentence all_messages outgoing_messages ]
   set all_messages but-first all_messages
 
-  set k 0
-  while [k < num_agents] [
-    ask vacuum(k) [
-      foreach all_messages [
-        ifelse incoming_messages = 0 and (first ?) = own_color [
-          set incoming_messages (list but-first ?)]
-        [if (first ?) = own_color and not member? ? incoming_messages[ set incoming_messages sentence incoming_messages (list but-first ?)]]]
-      if incoming_messages != 0 [set incoming_messages but-first incoming_messages]]
-    set k k + 1]
-
-
-
-  ; Here should put the code related to sending messages to other agents.
-  ; Note that this could be seen as a special case of executing actions, but for conceptual clarity it has been put in a separate method.
+  ask vacuums [
+    foreach all_messages [
+      ifelse incoming_messages = 0 and (first ?) = own_color [
+        set incoming_messages (list but-first ?)
+      ] [
+        if (first ?) = own_color and not member? ? incoming_messages [
+          set incoming_messages sentence incoming_messages (list but-first ?)
+        ]
+      ]
+    ]
+    if incoming_messages != 0 [set incoming_messages but-first incoming_messages]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -554,6 +585,17 @@ all_messages
 17
 1
 11
+
+SWITCH
+833
+627
+979
+660
+show_radius
+show_radius
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
