@@ -61,12 +61,13 @@ to go
   ; This method executes the main processing cycle of an agent.
   ; For Assignment 4.1, this involves updating desires, beliefs and intentions, and executing actions (and advancing the tick counter).
   clear-links
-  update-beliefs
   update-desires
+  update-beliefs
   update-intentions
   execute-actions
   tick
   set time time + 1
+  if all? patches [pcolor = white] [stop]
 end
 
 
@@ -77,10 +78,10 @@ to setup-patches
   set total_dirty round ((dirt_pct / (100 * num_agents)) * ( count patches))
   ask patches [ set pcolor white]
   set k  0
-  while [k < num_agents  ] [
+  while [k < num_agents] [
     ask n-of total_dirty patches with [pcolor = white] [ set pcolor item k color_list]
-    set k k + 1]
-
+    set k k + 1
+  ]
 end
 
 to set-transparency [new-transparency]
@@ -102,12 +103,14 @@ end
 ; --- Setup vacuums ---
 to setup-vacuums
   ; In this method you may create the vacuum cleaner agents.
+
   create-vacuums num_agents [
     setxy random max-pxcor random max-pycor
     facexy min-pxcor min-pycor + 1
     set color red
   ]
-  set k0 length [pcolor] of patches
+
+  set k0 count patches
   set k k0
   while [k < num_agents + k0][
     ask vacuum k [
@@ -119,8 +122,8 @@ to setup-vacuums
     ]
     set k k + 1
   ]
-end
 
+end
 
 ; --- Setup ticks ---
 to setup-ticks
@@ -133,14 +136,14 @@ end
 to update-desires
   ; You should update your agent's desires here.
   ; Keep in mind that now you have more than one agent.
-     ask vacuums [
-    if-else length beliefs = 0 [
-      set desire "search-for-dirt"
-    ] [
+  ask vacuums [
+    let c own_color
+    if-else any? patches with [pcolor = c] [
       set desire "clean-dirt"
+    ][
+      set desire "stop-and-turn-off"
     ]
   ]
-
 end
 
 
@@ -148,36 +151,40 @@ end
 to update-beliefs
  ; You should update your agent's beliefs here.
  ; Please remember that you should use this method whenever your agents changes its position.
-  set k k0
-  while [k < num_agents + k0][
-    ask vacuum(k) [
-      let c own_color
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = c]
+  ask vacuums [
+    let c own_color
+    ;set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = item k color_list]
+    let bel [(list pxcor pycor)] of patches in-radius vision_radius with [pcolor = c]
+    set beliefs sentence difference bel beliefs beliefs
+    ;if not member? bel beliefs [set beliefs sentence bel beliefs]
+    if show_radius [
+      let vac self
       ask sensors in-radius vision_radius [
-        create-link-to vacuum(k) [
+        create-link-to vac [
           set color c
           set-transparency 50
         ]
       ]
-      set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs]
-    set k k + 1
+    ]
+    set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
   ]
 end
 
+to-report difference [l1 l2]
+  report filter [not member? ? l2] l1
+end
 
 ; --- Update intentions ---
 to update-intentions
   ; You should update your agent's intentions here.
-    ask vacuums [
+  ask vacuums [
     if-else desire = "clean-dirt" and length beliefs > 0 [
         set intention first beliefs
-      ]
-     [
-      set intention list random-xcor random-ycor
+    ] [
+      set intention "no intention" ;if-else can-move? 1 [set intention list (xcor facexy) (ycor + 1)][set intention list random-xcor random-ycor]
     ]
   ]
 end
-
 
 ; tells wether the patch x1, y1 is closer to the agent position (represented by xa and ya) than the patch at x2, y2
 to-report point-distance [x1 y1 x2 y2 xa ya]
@@ -190,30 +197,39 @@ to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving, cleaning, and (actively) looking around.
   ; Please note that your agents should perform only one action per tick!
   ask vacuums [
-
     if-else desire = "clean-dirt" [
-      if-else pxcor = first intention and pycor = last intention and pcolor = own_color [
-        set pcolor white
-        set color black
-        set total_dirty total_dirty - 1]
-      [facexy first intention last intention
-      forward 1
-      set color own_color]]
-    [facexy first intention last intention
-      forward 1
-      set color own_color]
+      if-else intention != "no intention"[
+        if-else pxcor = first intention and pycor = last intention and pcolor = own_color [
+          ; case when agent is on dirt
+          set pcolor white
+          set color black
+          set total_dirty total_dirty - 1
+          set beliefs but-first beliefs
+        ] [
+          facexy first intention last intention ; move towards target
+          forward 1
+          set color own_color
+        ]
+      ] [
+        ; case with "no intention": just move in one direction
+        set color own_color
+        if-else not can-move? 1 [set heading (random 360) fd 1][fd 1]
+      ]
+    ] [
+      set color black
+      fd 0
+    ]
   ]
-
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-798
-24
-1260
-507
+786
+17
+1261
+513
 12
 12
-18.1
+18.6
 1
 10
 1
@@ -242,7 +258,7 @@ dirt_pct
 dirt_pct
 0
 100
-51
+19
 1
 1
 NIL
@@ -471,6 +487,17 @@ time
 17
 1
 11
+
+SWITCH
+815
+567
+961
+600
+show_radius
+show_radius
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
