@@ -24,15 +24,15 @@
 ;
 ; 1) total_dirty: this variable represents the amount of dirty cells in the environment.
 ; 2) time: the total simulation time.
-globals [total_dirty time color_list all_messages]
+globals [total_dirty time color_list]
 
 
 ; --- Agents ---
 ; The following types of agent (called 'breeds' in NetLogo) are given.
 ;
 ; 1) vacuums: vacuum cleaner agents.
-breed [sensors sensor]
 breed [vacuums vacuum]
+breed [sensors sensor]
 
 
 ; --- Local variables ---
@@ -45,7 +45,7 @@ breed [vacuums vacuum]
 ; 5) other_colors: the agent's belief about the target colors of other agents
 ; 6) outgoing_messages: list of messages sent by the agent to other agents
 ; 7) incoming_messages: list of messages received by the agent from other agents
-vacuums-own [beliefs desire intention own_color other_colors outgoing_messages incoming_messages]
+vacuums-own [beliefs desire intention own_color other_colors outgoing_messages incoming_messages sent_messages]
 
 
 ; --- Setup ---
@@ -53,8 +53,8 @@ to setup
   set time 0
   clear-all
   setup-patches
-  setup-sensors
   setup-vacuums
+  setup-sensors
   setup-ticks
 end
 
@@ -71,6 +71,7 @@ to go
   send-messages
   tick
   set time time + 1
+  if all? patches [pcolor = white] [stop]
 end
 
 
@@ -113,12 +114,14 @@ to setup-vacuums
     setxy random max-pxcor random max-pycor
     facexy min-pxcor min-pycor + 1
     set color red
+    set outgoing_messages (list)
+    set incoming_messages (list)
+    set sent_messages (list)
   ]
-  let k0 count sensors
-  let k k0
-  while [k < num_agents + k0][
+  let k 0
+  while [k < num_agents][
     ask vacuum(k) [
-      set own_color item (k - k0) color_list
+      set own_color item k color_list
       set color own_color
       set other_colors sublist color_list 0 num_agents
       set other_colors remove own_color other_colors
@@ -157,8 +160,8 @@ to update-beliefs
   ask vacuums [
     let vac_color own_color
     set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
-    if incoming_messages != 0 [set beliefs sentence beliefs incoming_messages]
-    set incoming_messages 0
+    if length incoming_messages != 0 [ set beliefs sentence beliefs incoming_messages ]
+    set incoming_messages (list)
     set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
 
     if show_radius [
@@ -171,10 +174,14 @@ to update-beliefs
       ]
     ]
 
+    set outgoing_messages (list)
     foreach other_colors [
-      set outgoing_messages sentence outgoing_messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
+      let messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
+      foreach sent_messages [
+        set messages remove ? messages
+      ]
+      set outgoing_messages sentence outgoing_messages messages
     ]
-    set outgoing_messages but-first outgoing_messages
   ]
 end
 
@@ -190,9 +197,11 @@ to update-intentions
   ; You should update your agent's intentions here.
   ask vacuums [
     if-else desire = "clean-dirt" and length beliefs > 0 [
-        set intention first beliefs
+      set intention first beliefs
     ] [
-      set intention list random-xcor random-ycor
+      if intention = 0 or (pxcor = round first intention and pycor = round last intention) [
+        set intention list round random-xcor round random-ycor
+      ]
     ]
   ]
 end
@@ -226,20 +235,14 @@ end
 ; Here should put the code related to sending messages to other agents.
 ; Note that this could be seen as a special case of executing actions, but for conceptual clarity it has been put in a separate method.
 to send-messages
-  ask vacuums [ set all_messages sentence all_messages outgoing_messages ]
-  set all_messages but-first all_messages
-
-  ask vacuums [
-    foreach all_messages [
-      ifelse incoming_messages = 0 and (first ?) = own_color [
-        set incoming_messages (list but-first ?)
-      ] [
-        if (first ?) = own_color and not member? ? incoming_messages [
-          set incoming_messages sentence incoming_messages (list but-first ?)
-        ]
-      ]
+  ask vacuums with [length outgoing_messages != 0] [
+    ask other vacuums [
+      let this_color own_color
+      let messages filter [first ? = this_color] [outgoing_messages] of myself
+      set messages map [(list item 1 ? last ?)] messages
+      set incoming_messages messages
     ]
-    if incoming_messages != 0 [set incoming_messages but-first incoming_messages]
+    set sent_messages sentence sent_messages outgoing_messages
   ]
 end
 @#$#@#$#@
@@ -279,7 +282,7 @@ dirt_pct
 dirt_pct
 0
 100
-14
+22
 1
 1
 NIL
@@ -389,17 +392,6 @@ Desire of vacuum 1
 11
 
 MONITOR
-6
-320
-774
-365
-Beliefs of vacuum 1
-[beliefs] of vacuum 0
-17
-1
-11
-
-MONITOR
 5
 465
 772
@@ -499,17 +491,6 @@ Desire of vacuum 3
 11
 
 MONITOR
-6
-364
-385
-409
-Outgoing messages vacuum 1
-[outgoing_messages] of vacuum 0
-17
-1
-11
-
-MONITOR
 385
 364
 774
@@ -575,17 +556,6 @@ time
 1
 11
 
-MONITOR
-107
-29
-211
-74
-NIL
-all_messages
-17
-1
-11
-
 SWITCH
 833
 627
@@ -596,6 +566,28 @@ show_radius
 0
 1
 -1000
+
+MONITOR
+5
+320
+773
+365
+Beliefs of vacuum 1
+[beliefs] of vacuum 0
+17
+1
+11
+
+MONITOR
+5
+364
+385
+409
+Outgoing messages vacuum 1
+[outgoing_messages] of vacuum 0
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
