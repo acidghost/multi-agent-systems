@@ -113,22 +113,14 @@ to setup-vacuums
   create-vacuums num_agents [
     setxy random max-pxcor random max-pycor
     facexy min-pxcor min-pycor + 1
-    set color 8; red
+    set own_color 8
+    set color 8
+    set beliefs (list)
     set other_colors (list)
     set outgoing_messages (list)
     set incoming_messages (list)
     set sent_messages (list)
   ]
-  ;let k 0
-  ;while [k < num_agents][
-  ;  ask vacuum(k) [
-  ;    set own_color item k color_list
-  ;    set color own_color
-  ;    set other_colors sublist color_list 0 num_agents
-  ;    set other_colors remove own_color other_colors
-  ;    set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = [own_color] of vacuum(k)]]
-  ;  set k k + 1
-  ;]
 end
 
 
@@ -144,7 +136,7 @@ to update-desires
   ; You should update your agent's desires here.
   ; Keep in mind that now you have more than one agent.
   ask vacuums [
-    if-else length beliefs = 0 [
+    if-else length beliefs = 0 or own_color = 8 [
       set desire "search-for-dirt"
     ] [
       set desire "clean-dirt"
@@ -159,12 +151,16 @@ to update-beliefs
  ; Please remember that you should use this method whenever your agents changes its position.
  ; Also note that this method should distinguish between two cases, namely updating beliefs based on 1) observed information and 2) received messages.
   ask vacuums [
-    if-else color = 8 [
+    if-else own_color = 8 [
       if-else length other_colors = num_agents - 1 [
         ; only one remaining agent without color
-
+        let colors color_list
+        foreach other_colors [ set colors remove ? colors ]
+        set own_color first colors
+        set color own_color
+        ask other vacuums [ set other_colors sentence other_colors [own_color] of myself ]
       ] [
-        set beliefs [(list pcolor pxcor pycor)] of patches in-radius vision_radius with [pcolor != white]
+        set beliefs sentence beliefs [(list pcolor pxcor pycor)] of patches in-radius vision_radius with [pcolor != white]
         foreach color_list [
           let c ?
           let beliefs_of_color filter [first ? = c] beliefs
@@ -173,9 +169,7 @@ to update-beliefs
           if beliefs_count >= threshold and not member? c other_colors [
             set own_color c
             set color own_color
-            ask other vacuums [
-              set other_colors sentence other_colors c
-            ]
+            ask other vacuums [ set other_colors sentence other_colors c ]
           ]
         ]
       ]
@@ -200,7 +194,7 @@ to update-beliefs
       foreach other_colors [
         let messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
         foreach sent_messages [
-          set messages remove ? messages
+          ; set messages remove ? messages
         ]
         set outgoing_messages sentence outgoing_messages messages
       ]
@@ -235,7 +229,7 @@ to execute-actions
   ; Here you should put the code related to the actions performed by your agent: moving, cleaning, and (actively) looking around.
   ; Please note that your agents should perform only one action per tick!
   ask vacuums [
-    if-else desire = "clean-dirt" [
+    if-else desire = "clean-dirt" and color != 8 [
       if-else pxcor = first intention and pycor = last intention and pcolor = own_color [
         set pcolor white
         set color black
@@ -305,7 +299,7 @@ dirt_pct
 dirt_pct
 0
 100
-22
+12
 1
 1
 NIL
@@ -586,7 +580,7 @@ SWITCH
 660
 show_radius
 show_radius
-1
+0
 1
 -1000
 
@@ -620,8 +614,8 @@ SLIDER
 threshold
 threshold
 0
-total_dirty
-1
+count patches
+7
 1
 1
 NIL
