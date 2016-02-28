@@ -161,6 +161,7 @@ to update-beliefs
         ask other vacuums [ set other_colors sentence other_colors [own_color] of myself ]
       ] [
         set beliefs sentence beliefs [(list pcolor pxcor pycor)] of patches in-radius vision_radius with [pcolor != white]
+        set beliefs remove-duplicates beliefs
         foreach color_list [
           let c ?
           let beliefs_of_color filter [first ? = c] beliefs
@@ -178,6 +179,7 @@ to update-beliefs
       set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
       if length incoming_messages != 0 [ set beliefs sentence beliefs incoming_messages ]
       set incoming_messages (list)
+      set beliefs remove-duplicates beliefs
       set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
 
       if show_radius [
@@ -193,9 +195,7 @@ to update-beliefs
       set outgoing_messages (list)
       foreach other_colors [
         let messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
-        foreach sent_messages [
-          ; set messages remove ? messages
-        ]
+        ; set messages filter [not member? ? sent_messages] messages
         set outgoing_messages sentence outgoing_messages messages
       ]
     ]
@@ -365,7 +365,7 @@ num_agents
 num_agents
 2
 7
-3
+2
 1
 1
 NIL
@@ -614,8 +614,8 @@ SLIDER
 threshold
 threshold
 0
-count patches
-7
+total_dirty
+6
 1
 1
 NIL
