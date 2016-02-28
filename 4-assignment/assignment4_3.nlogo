@@ -159,6 +159,7 @@ to update-beliefs
         set own_color first colors
         set color own_color
         ask other vacuums [ set other_colors sentence other_colors [own_color] of myself ]
+        set beliefs (list)
       ] [
         set beliefs sentence beliefs [(list pcolor pxcor pycor)] of patches in-radius vision_radius with [pcolor != white]
         set beliefs remove-duplicates beliefs
@@ -171,12 +172,13 @@ to update-beliefs
             set own_color c
             set color own_color
             ask other vacuums [ set other_colors sentence other_colors c ]
+            set beliefs (list)
           ]
         ]
       ]
     ] [
       let vac_color own_color
-      set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
+      set beliefs sentence beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
       if length incoming_messages != 0 [ set beliefs sentence beliefs incoming_messages ]
       set incoming_messages (list)
       set beliefs remove-duplicates beliefs
@@ -195,7 +197,7 @@ to update-beliefs
       set outgoing_messages (list)
       foreach other_colors [
         let messages ([(list ? pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
-        ; set messages filter [not member? ? sent_messages] messages
+        ; foreach sent_messages [ set messages remove ? messages ]
         set outgoing_messages sentence outgoing_messages messages
       ]
     ]
@@ -215,6 +217,7 @@ to update-intentions
   ask vacuums [
     if-else desire = "clean-dirt" and length beliefs > 0 [
       set intention first beliefs
+      set beliefs but-first beliefs
     ] [
       if intention = 0 or (pxcor = round first intention and pycor = round last intention) [
         set intention list round random-xcor round random-ycor

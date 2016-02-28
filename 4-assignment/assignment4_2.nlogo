@@ -159,9 +159,10 @@ to update-beliefs
  ; Also note that this method should distinguish between two cases, namely updating beliefs based on 1) observed information and 2) received messages.
   ask vacuums [
     let vac_color own_color
-    set beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
+    set beliefs sentence beliefs [list pxcor pycor] of patches in-radius vision_radius with [pcolor = vac_color]
     if length incoming_messages != 0 [ set beliefs sentence beliefs incoming_messages ]
     set incoming_messages (list)
+    set beliefs remove-duplicates beliefs
     set beliefs sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] beliefs
 
     if show_radius [
@@ -177,9 +178,7 @@ to update-beliefs
     set outgoing_messages (list)
     foreach other_colors [
       let messages ([(list pcolor pxcor pycor)] of patches in-radius vision_radius with [pcolor = ?])
-      ; foreach sent_messages [
-      ;   set messages remove ? messages
-      ; ]
+      ; foreach sent_messages [ set messages remove ? messages ]
       set outgoing_messages sentence outgoing_messages messages
     ]
   ]
@@ -198,6 +197,7 @@ to update-intentions
   ask vacuums [
     if-else desire = "clean-dirt" and length beliefs > 0 [
       set intention first beliefs
+      set beliefs but-first beliefs
     ] [
       if intention = 0 or (pxcor = round first intention and pycor = round last intention) [
         set intention list round random-xcor round random-ycor
@@ -348,7 +348,7 @@ num_agents
 num_agents
 2
 7
-2
+7
 1
 1
 NIL
