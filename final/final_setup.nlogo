@@ -1,4 +1,7 @@
-globals [time]
+globals [
+  time
+  tool
+]
 
 
 ; --- Agents ---
@@ -13,16 +16,15 @@ players-own [
   in-team-B?
   beliefs desire intention]
 
+breed [ bases base ]
 
 ; --- Setup ---
 to setup
   clear-all
   set time 0
-  set-patch-size patch_size
-  resize-world (- world_size) world_size (- world_size) world_size
-  setup-patches
+  load-map
   setup-humans
-  setup-ticks
+  reset-ticks
 end
 
 
@@ -37,21 +39,12 @@ to go
 end
 
 
-; --- Setup patches ---
-to setup-patches
-  ask patches [set pcolor green]
-  create-lakes
-  ask n-of wood_units patches [ set pcolor brown ]
-  ask n-of metal_units patches [ set pcolor yellow ]
-end
-
-to create-lakes
-  ask n-of ponds patches [ set pcolor blue ]
-  repeat 6 [
-    ask patches with [pcolor = blue] [
-      ask one-of neighbors4 [ set pcolor blue ]
-    ]
+to load-map
+  if length map-name < 1 [
+    user-message "Map name not inserted."
+    stop
   ]
+  import-world (word "./map-" map-name ".csv")
 end
 
 ; --- Setup vacuums ---
@@ -102,10 +95,6 @@ to-report sequence
   report my_l
 end
 
-; --- Setup ticks ---
-to setup-ticks
-  reset-ticks
-end
 
 
 ; --- Update desires ---
@@ -135,16 +124,14 @@ end
 
 
 
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-759
-580
-24
-24
+781
+602
+25
+25
 11.0
 1
 10
@@ -155,10 +142,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--24
-24
--24
-24
+-25
+25
+-25
+25
 0
 0
 1
@@ -200,75 +187,30 @@ NIL
 0
 
 SLIDER
-18
-134
-190
-167
-ponds
-ponds
-0
-60
-10
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-18
-71
-190
-104
-world_size
-world_size
+22
+138
+194
+171
+world-size
+world-size
 10
 100
-24
+25
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-18
-103
-190
-136
-patch_size
-patch_size
+22
+170
+194
+203
+patches-size
+patches-size
 5
 20
-11
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-18
-167
-190
-200
-wood_units
-wood_units
-0
-300
-31
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-18
-199
-190
-232
-metal_units
-metal_units
-0
-100
-20
+10
 1
 1
 NIL
@@ -303,6 +245,17 @@ team_B_size
 1
 NIL
 HORIZONTAL
+
+INPUTBOX
+30
+67
+101
+127
+map-name
+1
+1
+0
+String
 
 @#$#@#$#@
 ## WHAT IS IT?
