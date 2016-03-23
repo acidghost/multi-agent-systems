@@ -1,3 +1,5 @@
+extensions [table]
+
 globals [
   time
   tool
@@ -14,9 +16,18 @@ players-own [
   explorer
   in-team-A?
   in-team-B?
-  beliefs desire intention]
+  desire intention
+  hunger
+  base-food-level
+  food-places
+  minerals-places
+]
 
 breed [ bases base ]
+bases-own [
+  food-level
+  health
+]
 
 ; --- Setup ---
 to setup
@@ -24,15 +35,18 @@ to setup
   set time 0
   load-map
   setup-humans
+  setup-bases
   reset-ticks
 end
 
 
 ; --- Main processing cycle ---
 to go
-  ;update-desires
-  ;update-beliefs
-  ;update-intentions
+  grow-resources  ;
+  update-graphics
+  update-beliefs
+  update-desires
+  update-intentions
   execute-actions
   tick
   set time time + 1
@@ -52,24 +66,31 @@ to setup-humans
 
   set-default-shape turtles "person"
   ;; assemble teams
-  repeat team_A_size [ make-player-A ]
-  repeat team_B_size [ make-player-B ]
+  repeat team_A_size [ make-player red ]
+  repeat team_B_size [ make-player white ]
 end
 
-to make-player-A
-  create-players 1
-  [
-    set color red
-    set in-team-A? true
-    give-skills
+to setup-bases
+  ask bases [
+    set food-level 0
+    set health 100
   ]
 end
-to make-player-B
-  create-players 1
-  [
-    set color white
-    set in-team-A? false
+
+to make-player [player-color]
+  create-players 1 [
+    set color player-color
+    if-else player-color = red [
+      set in-team-A? true
+    ] [
+      set in-team-A? false
+    ]
     give-skills
+    set hunger 1000
+    set food-places (list)
+    set minerals-places (list)
+    setxy random max-pxcor random max-pycor
+    facexy min-pxcor min-pycor + 1
   ]
 end
 
@@ -95,32 +116,107 @@ to-report sequence
   report my_l
 end
 
-
-
-; --- Update desires ---
-to update-desires
+to grow-resources    ;
+  ask patches [
+    if pcolor = black [
+      if random-float 1000 < resource-growth-rate / 10
+        [ set pcolor yellow ]
+    ]
+    if pcolor = grey [
+      if random-float 1000 < resource-growth-rate / 10
+        [ set pcolor brown ]
+  ] ]
 end
+
+; tells wether the patch x1, y1 is closer to the agent position (represented by xa and ya) than the patch at x2, y2
+to-report point-distance [x1 y1 x2 y2 xa ya]
+  report sqrt ( (x1 - xa) ^ 2 + (y1 - ya) ^ 2 ) < sqrt ( (x2 - xa) ^ 2 + (y2 - ya) ^ 2 )
+end
+
+to update-graphics
+  ask players [
+    set label hunger
+  ]
+end
+
 
 
 ; --- Update desires ---
 to update-beliefs
+  ask players [
+    set hunger (hunger - food-decay)
+
+    set food-places sentence food-places [list pxcor pycor] of patches in-radius 5 with [pcolor = brown]
+    set food-places remove-duplicates food-places
+
+    set minerals-places sentence minerals-places [list pxcor pycor] of patches in-radius 5 with [pcolor = yellow]
+    set minerals-places remove-duplicates minerals-places
+
+    if count bases in-radius 1 with [color = [color] of myself] > 0 [
+      set base-food-level [food-level] of bases in-radius 1 with [color = [color] of myself]
+    ]
+
+    print food-places
+    print minerals-places
+  ]
+end
+
+
+to-report get-food-base-dist
+  let closest-food first food-places
+  let food-dist distancexy first closest-food last closest-food
+  report (food-dist + base-dist)
+end
+
+to-report base-dist
+  ask bases with [color = [color] of myself] [
+    report distance myself
+  ]
+end
+
+
+; --- Update desires ---
+to update-desires
+  ask players [
+    if-else length food-places > 0 [
+      if-else hunger < base-dist + 1 [
+        set desire "eat-food"
+      ] [
+        if-else length minerals-places > 0 [
+          set desire "get-minerals"
+        ] [
+          set desire "explore"
+        ]
+      ]
+    ] [
+      set desire "explore"
+    ]
+  ]
 end
 
 
 ; --- Update intentions ---
 to update-intentions
+  ask players [
+    if-else desire = "eat-food" [
+      if-else base-dist < 1 [
+        set intention "grab-food"
+      ] [
+        set intention "goto-base"
+      ]
+    ] [
+
+    ]
+  ]
 end
 
 
 ; --- Execute actions ---
 to execute-actions
-  ask players [ if in-team-A? [fd 1]
-    ]
+  ask players [
+    if in-team-A? [ fd 1 ]
+  ]
 end
-
-
-
-
 
 
 
@@ -217,10 +313,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-18
-232
-190
-265
+22
+235
+194
+268
 team_A_size
 team_A_size
 0
@@ -232,10 +328,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-19
-265
-191
-298
+22
+268
+194
+301
 team_B_size
 team_B_size
 0
@@ -256,6 +352,36 @@ map-name
 1
 0
 String
+
+SLIDER
+22
+202
+194
+235
+resource-growth-rate
+resource-growth-rate
+0
+100
+50
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+14
+347
+186
+380
+food-decay
+food-decay
+1
+6
+1
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
