@@ -7,6 +7,12 @@ globals [
 
 
 ; --- Agents ---
+breed [ bases base ]
+bases-own [
+  food-level
+  minerals-level
+  health
+]
 
 breed [players player]
 players-own [
@@ -20,13 +26,16 @@ players-own [
   hunger
   base-food-level
   food-places
+  food-patch-level
+  food-storage
   minerals-places
+  minerals-patch-level
+  minerals-storage
 ]
 
-breed [ bases base ]
-bases-own [
-  food-level
-  health
+patches-own [
+  minerals
+  food
 ]
 
 ; --- Setup ---
@@ -36,6 +45,7 @@ to setup
   load-map
   setup-humans
   setup-bases
+  setup-patches
   reset-ticks
 end
 
@@ -61,10 +71,7 @@ to load-map
   import-world (word "./map-" map-name ".csv")
 end
 
-; --- Setup vacuums ---
 to setup-humans
-
-  set-default-shape turtles "person"
   ;; assemble teams
   repeat team_A_size [ make-player red ]
   repeat team_B_size [ make-player white ]
@@ -73,12 +80,26 @@ end
 to setup-bases
   ask bases [
     set food-level 0
+    set minerals-level 0
     set health 100
+  ]
+end
+
+to setup-patches
+  ask patches [
+    if-else pcolor = yellow [
+      set minerals 50
+    ] [
+      if pcolor = brown [
+        set food 200
+      ]
+    ]
   ]
 end
 
 to make-player [player-color]
   create-players 1 [
+    set shape "person"
     set color player-color
     if-else player-color = red [
       set in-team-A? true
@@ -88,7 +109,9 @@ to make-player [player-color]
     give-skills
     set hunger 1000
     set food-places (list)
+    set food-storage 0
     set minerals-places (list)
+    set minerals-storage 0
     setxy random max-pxcor random max-pycor
     facexy min-pxcor min-pycor + 1
   ]
@@ -133,6 +156,20 @@ to-report point-distance [x1 y1 x2 y2 xa ya]
   report sqrt ( (x1 - xa) ^ 2 + (y1 - ya) ^ 2 ) < sqrt ( (x2 - xa) ^ 2 + (y2 - ya) ^ 2 )
 end
 
+to-report get-food-base-dist
+  let closest-food first food-places
+  let food-dist distancexy first closest-food last closest-food
+  report (food-dist + base-dist)
+end
+
+to-report base-dist
+  let dist 0
+  ask bases with [color = [color] of myself] [
+    set dist distance myself
+  ]
+  report dist
+end
+
 to update-graphics
   ask players [
     set label hunger
@@ -146,31 +183,26 @@ to update-beliefs
   ask players [
     set hunger (hunger - food-decay)
 
-    set food-places sentence food-places [list pxcor pycor] of patches in-radius 5 with [pcolor = brown]
+    set food-places sentence food-places [list pxcor pycor] of patches in-radius vision-radius with [pcolor = brown]
     set food-places remove-duplicates food-places
+    set food-places sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] food-places
+    if pcolor = brown [
+      set food-patch-level [food] of patch-here
+    ]
 
-    set minerals-places sentence minerals-places [list pxcor pycor] of patches in-radius 5 with [pcolor = yellow]
+    set minerals-places sentence minerals-places [list pxcor pycor] of patches in-radius vision-radius with [pcolor = yellow]
     set minerals-places remove-duplicates minerals-places
+    set minerals-places sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] minerals-places
+    if pcolor = yellow [
+      set minerals-patch-level [minerals] of patch-here
+    ]
 
     if count bases in-radius 1 with [color = [color] of myself] > 0 [
       set base-food-level [food-level] of bases in-radius 1 with [color = [color] of myself]
     ]
 
-    print food-places
-    print minerals-places
-  ]
-end
-
-
-to-report get-food-base-dist
-  let closest-food first food-places
-  let food-dist distancexy first closest-food last closest-food
-  report (food-dist + base-dist)
-end
-
-to-report base-dist
-  ask bases with [color = [color] of myself] [
-    report distance myself
+    ; print food-places
+    ; print minerals-places
   ]
 end
 
@@ -200,12 +232,25 @@ to update-intentions
   ask players [
     if-else desire = "eat-food" [
       if-else base-dist < 1 [
-        set intention "grab-food"
+        set intention "grab-food-base"
       ] [
         set intention "goto-base"
       ]
     ] [
-
+      if-else desire = "get-minerals" [
+        if-else minerals-storage = storage-capacity [
+          set intention "unload-minerals"
+        ] [
+          if-else is-list? intention and pxcor = first intention and pycor = last intention and pcolor = yellow and minerals-patch-level > 0 [
+            set intention "grab-minerals"
+          ] [
+            set intention first minerals-places
+          ]
+        ]
+      ] [
+        ; desire = "explore"
+        set intention (list random max-pxcor random max-pycor)
+      ]
     ]
   ]
 end
@@ -214,10 +259,43 @@ end
 ; --- Execute actions ---
 to execute-actions
   ask players [
-    if in-team-A? [ fd 1 ]
+    if-else intention = "grab-food-base" [
+
+    ] [
+      if-else intention = "goto-base" [
+
+      ] [
+        if-else intention = "grab-minerals" [
+          let amount-taken (gather * 10)
+          if amount-taken > [minerals] of patch-here [
+            set amount-taken [minerals] of patch-here
+          ]
+          ask patch-here [ set minerals (minerals - amount-taken)  ]
+          set minerals-storage minerals-storage + amount-taken
+          if [minerals] of patch-here = 0 [
+            ask patch-here [ set pcolor green ]
+          ]
+        ] [
+          if-else intention = "unload-minerals" [
+            if-else base-dist < 1 [
+              ask bases-here [
+                set minerals-level minerals-level + [minerals-storage] of myself
+              ]
+              set minerals-storage 0
+            ] [
+              face base with [color = [color] of myself]
+              forward 1
+            ]
+          ] [
+            ; intention is xy
+            facexy first intention last intention
+            forward 1
+          ]
+        ]
+      ]
+    ]
   ]
 end
-
 
 
 @#$#@#$#@
@@ -378,6 +456,58 @@ food-decay
 1
 6
 1
+1
+1
+NIL
+HORIZONTAL
+
+MONITOR
+11
+508
+140
+553
+Desire player 1
+[desire] of player 2
+17
+1
+11
+
+MONITOR
+12
+555
+117
+600
+Desire player 2
+[desire] of player 3
+17
+1
+11
+
+SLIDER
+13
+309
+185
+342
+vision-radius
+vision-radius
+3
+30
+5
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+16
+387
+188
+420
+storage-capacity
+storage-capacity
+3
+100
+50
 1
 1
 NIL
