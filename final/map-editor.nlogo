@@ -14,6 +14,7 @@ globals [
 to new
   if user-yes-or-no? "Do you really want to clear the level?" [
     clear-all
+
     resize-world (- world-size) world-size (- world-size) world-size
     set-patch-size patches-size
     set tool "Eraser"
@@ -46,7 +47,7 @@ to draw
     [ place-base red ]
 
     if tool = "Place Base B"
-    [ place-base violet ]
+    [ place-base white ]
   ]
 end
 
@@ -138,12 +139,12 @@ to load-map
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-285
+278
 10
-805
+798
 551
-25
-25
+-1
+-1
 10.0
 1
 10
@@ -154,10 +155,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--25
-25
--25
-25
+0
+50
+0
+50
 0
 0
 0
@@ -344,7 +345,7 @@ INPUTBOX
 273
 136
 map-name
-1
+2
 1
 0
 String

@@ -14,6 +14,9 @@ bases-own [
   health
 ]
 
+breed [terminators terminator]
+terminators-own[dest]
+
 breed [players player]
 players-own [
   gather
@@ -24,6 +27,7 @@ players-own [
   in-team-B?
   desire intention
   hunger
+  not-hungry
   base-food-level
   food-places
   food-patch-level
@@ -31,6 +35,13 @@ players-own [
   minerals-places
   minerals-patch-level
   minerals-storage
+  max-food-capacity
+  max-minerals-capacity
+  inbox
+  outbox
+  enemy-base
+  max-not-hungry
+  explore-at
 ]
 
 patches-own [
@@ -42,22 +53,44 @@ patches-own [
 to setup
   clear-all
   set time 0
+  let rnd random 500
   load-map
+  random-seed rnd
   setup-humans
   setup-bases
-  setup-patches
+  setup-patches                       ;
   reset-ticks
 end
 
 
 ; --- Main processing cycle ---
 to go
-  grow-resources  ;
+  grow-resources
   update-graphics
   update-beliefs
   update-desires
   update-intentions
   execute-actions
+  send-messages
+  update-patches
+
+  ask players with [hunger <= 0] [ die ]
+
+  let to-stop false
+  ask bases [
+    if health <= 0 [
+      let opponent-color 0
+      if-else color = red [
+        set opponent-color "white"
+      ] [
+        set opponent-color "red"
+      ]
+      user-message (word "Team " opponent-color " won the game!")
+      set to-stop true
+    ]
+  ]
+  if to-stop [ stop ]
+
   tick
   set time time + 1
 end
@@ -91,7 +124,7 @@ to setup-patches
       set minerals 50
     ] [
       if pcolor = brown [
-        set food 200
+        set food 5000
       ]
     ]
   ]
@@ -107,14 +140,22 @@ to make-player [player-color]
       set in-team-A? false
     ]
     give-skills
-    set hunger 1000
+    set max-food-capacity (hunter * 100)
+    set max-minerals-capacity (gather)
+    set not-hungry (random 500) + 500
+    set hunger not-hungry
     set food-places (list)
     set food-storage 0
     set minerals-places (list)
     set minerals-storage 0
+    set inbox (list)
+    set outbox (list)
+    set enemy-base (list)
     setxy random max-pxcor random max-pycor
     facexy min-pxcor min-pycor + 1
   ]
+
+
 end
 
 to give-skills
@@ -122,32 +163,33 @@ to give-skills
   setxy random max-pxcor random max-pycor
   facexy min-pxcor min-pycor + 1
   set size 1.6
-  set explorer first my_l
-  set hunter item 1 my_l
-  set gather item 2 my_l
+  set hunter first my_l
+  set gather item 1 my_l
   set soldier last my_l
 end
 
 to-report sequence
-  let s 35 + random (10)
-  let rest 100 - s
-  let a random rest
-  let b random rest - a
-  let c random rest - a - b
-  let my_list (list s a b c)
-  let my_l shuffle my_list
-  report my_l
+  let a 35 + random (25)
+  let b 1 + random (6)
+  let c 35 + random (30)
+  let my_list (list a b c)
+  ;;let my_l shuffle my_list
+  report my_list
 end
 
 to grow-resources    ;
   ask patches [
     if pcolor = black [
       if random-float 1000 < resource-growth-rate / 10
-        [ set pcolor yellow ]
+        [ set pcolor yellow
+          set minerals 50
+          ]
     ]
     if pcolor = grey [
       if random-float 1000 < resource-growth-rate / 10
-        [ set pcolor brown ]
+        [ set pcolor brown
+          set food 5000
+           ]
   ] ]
 end
 
@@ -176,15 +218,55 @@ to update-graphics
   ]
 end
 
-
+to update-patches
+  ask patches [
+    if-else pcolor = yellow and minerals < 1 [
+      set pcolor black
+    ] [
+      if pcolor = brown and food < 1 [
+        set pcolor grey
+      ]
+    ]
+  ]
+end
 
 ; --- Update desires ---
 to update-beliefs
   ask players [
     set hunger (hunger - food-decay)
 
+    let not-hungry-list [not-hungry] of players with-max [not-hungry]
+    if length not-hungry-list > 0 [
+      set max-not-hungry (first not-hungry-list) + 50
+    ]
+
+    if length inbox > 0 [
+      let minerals-msg filter [first ? = yellow] outbox
+      set minerals-msg map [(list item 1 ? last ?)] minerals-msg
+      set minerals-places sentence minerals-places minerals-msg
+
+      let food-msg filter [first ? = brown] outbox
+      set food-msg map [(list item 1 ? last ?)] food-msg
+      set food-places sentence food-places food-msg
+
+      set inbox (list)
+    ]
+
+    let i 0
+    let to-remove (list)
+
     set food-places sentence food-places [list pxcor pycor] of patches in-radius vision-radius with [pcolor = brown]
     set food-places remove-duplicates food-places
+    set i 0
+    set to-remove (list)
+    while [i < length food-places] [
+      let food-place item i food-places
+      if [food] of patch first food-place last food-place < 1 [
+        set to-remove sentence to-remove i
+      ]
+      set i i + 1
+    ]
+    foreach to-remove [ set food-places remove-item ? food-places ]
     set food-places sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] food-places
     if pcolor = brown [
       set food-patch-level [food] of patch-here
@@ -192,17 +274,48 @@ to update-beliefs
 
     set minerals-places sentence minerals-places [list pxcor pycor] of patches in-radius vision-radius with [pcolor = yellow]
     set minerals-places remove-duplicates minerals-places
+    set i 0
+    set to-remove (list)
+    while [i < length minerals-places] [
+      let minerals-place item i minerals-places
+      let current-minerals-level [minerals] of patch first minerals-place last minerals-place
+      if current-minerals-level < 1 [
+        set to-remove sentence to-remove i
+      ]
+      set i i + 1
+    ]
+    foreach to-remove [ set minerals-places remove-item ? minerals-places ]
     set minerals-places sort-by [ point-distance first ?1 last ?1 first ?2 last ?2 xcor ycor ] minerals-places
     if pcolor = yellow [
       set minerals-patch-level [minerals] of patch-here
     ]
 
     if count bases in-radius 1 with [color = [color] of myself] > 0 [
-      set base-food-level [food-level] of bases in-radius 1 with [color = [color] of myself]
+      let food-level-list [food-level] of bases with [color = [color] of myself]
+      if not empty? food-level-list [
+        set base-food-level first food-level-list
+      ]
     ]
 
-    ; print food-places
-    ; print minerals-places
+    set outbox ([(list pcolor pxcor pycor)] of patches in-radius vision-radius with [pcolor = yellow or pcolor = brown])
+
+    let new-enemy-base [(list pxcor pycor)] of bases in-radius vision-radius with [color != [color] of myself]    ;find enemy base
+    if not empty? enemy-base and first enemy-base != 0 [ set new-enemy-base sentence enemy-base new-enemy-base ]
+    set enemy-base remove-duplicates new-enemy-base
+
+    ; set explore-at
+    if explore-at = 0 or (round xcor = [pxcor] of explore-at and round ycor = [pycor] of explore-at) [
+      let done false
+      while [not done] [
+        let rndheading random 360
+        let explore-patch patch-at-heading-and-distance rndheading ((random max-pxcor - 10) + 10)
+        if explore-patch != nobody [
+          let other-lst [explore-at] of other players with [color = [color] of myself]
+          if not member? explore-patch other-lst [ set done true ]
+          if done [ set explore-at explore-patch ]
+        ]
+      ]
+    ]
   ]
 end
 
@@ -210,18 +323,15 @@ end
 ; --- Update desires ---
 to update-desires
   ask players [
-    if-else length food-places > 0 [
-      if-else hunger < base-dist + 1 [
-        set desire "eat-food"
-      ] [
-        if-else length minerals-places > 0 [
-          set desire "get-minerals"
-        ] [
-          set desire "explore"
-        ]
-      ]
+    if-else hunger < base-dist + 1 [
+      set desire "eat"
     ] [
-      set desire "explore"
+      let base-minerals [minerals-level] of bases with [color = [color] of myself]
+      if-else (not empty? base-minerals and first base-minerals < 30) or max-not-hungry > base-food-level [
+        set desire "collaborate"
+      ] [
+        set desire "attack"
+      ]
     ]
   ]
 end
@@ -230,82 +340,278 @@ end
 ; --- Update intentions ---
 to update-intentions
   ask players [
-    if-else desire = "eat-food" [
+    if-else desire = "eat" [
       if-else base-dist < 1 [
-        set intention "grab-food-base"
-      ] [
-        set intention "goto-base"
-      ]
-    ] [
-      if-else desire = "get-minerals" [
-        if-else minerals-storage = storage-capacity [
-          set intention "unload-minerals"
+        if-else base-food-level > not-hungry [
+          set intention "grab-food"
         ] [
-          if-else is-list? intention and pxcor = first intention and pycor = last intention and pcolor = yellow and minerals-patch-level > 0 [
-            set intention "grab-minerals"
-          ] [
-            set intention first minerals-places
+        if-else max-not-hungry > base-food-level [
+          set intention "get-food"
+          ][
+          set intention "wait-food"
           ]
         ]
       ] [
-        ; desire = "explore"
-        set intention (list random max-pxcor random max-pycor)
+        if-else max-not-hungry > base-food-level [
+          if-else pcolor = brown and food-patch-level > 0 [
+            if-else food-storage < max-food-capacity [
+              set intention "pick-up food"
+            ] [
+              set intention "goto-base"
+            ]
+          ] [
+            if-else food-storage < max-food-capacity [
+              set intention "get-food"
+            ] [
+              set intention "goto-base"
+            ]
+          ]
+        ] [
+          set intention "goto-base"
+        ]
+      ]
+    ] [
+    ;desire is "collaborate"
+    if-else desire = "collaborate"[
+      if-else base-dist < 1 [
+        if-else minerals-storage > 0 [
+          set intention "deposit-minerals"
+        ][
+        if-else food-storage > 0 [
+          set intention "deposit-food"
+        ][
+        if-else base-food-level < max-not-hungry [ ; case when there's not enough food at base
+          if-else length food-places > 0 [
+            set intention "get-food"
+          ] [
+          set intention "explore"
+          ]
+        ]
+        [; case with enough food at base
+          if-else length minerals-places > 0 [
+            set intention "get-minerals"
+          ][
+          set intention "explore"
+          ]
+        ]
+        ]
+        ]
+      ] [ ; case far from base
+
+      if-else food-storage = max-food-capacity or minerals-storage = max-minerals-capacity [
+        ; intention to return to base to empty bag ; Define Threshold
+        ; QUESTION: can we check other agents' desires to determine whether to pick up food only or also minerals?
+        set intention "goto-base"
+      ] [
+       if-else pcolor = yellow and minerals-patch-level > 0 [
+         set intention "pick-up metals"
+         ][
+         if-else pcolor = brown and food-patch-level > 0[
+           set intention "pick-up food"
+           ][
+           if-else length minerals-places > 0 [
+            set intention "get-minerals"
+          ][
+          set intention "explore"
+          ]
+
+
+           ;if intention != 0[
+           ;set intention "reach-goal"
+           ;]
+           ]
+         ]
+      ]
       ]
     ]
+    [
+      if-else desire = "attack"[
+        if-else length enemy-base = 0 [
+          set intention "find-enemy-base"
+        ][
+          ; set intention "get-minerals" ;;what else could we set as intention?
+          ; set intention "reach-goal"
+          if-else first [minerals-level] of bases with [color = [color] of myself] > 20 [
+            set intention "send-terminators"
+          ] [
+            set intention "get-minerals"
+          ]
+         ]
+       ]
+      [set intention 0]
+      ; no desire ;; idea: what if agents desire to attack (in addition) and that means that they'll look for enemies base and communicate that to soldiers?
+
+    ]
+    ]
   ]
+
+
+  ;list random max-pxcor random max-pycor)
 end
 
 
 ; --- Execute actions ---
 to execute-actions
-  ask players [
-    if-else intention = "grab-food-base" [
+    ask players [
+    if intention != 0 [
+      if-else intention = "grab-food"[
+        let new-level (base-food-level - (not-hungry - hunger))
+        ask bases-here with [color = [color] of myself] [
+          set food-level new-level ;;or just food-level
+        ]
+        set hunger not-hungry
+        ][
+        if-else intention = "wait-food"[
+          ;;agent will just stay and wait
+          ][
+          if-else intention = "goto-base"[
+            if-else in-team-A? [
+              facexy first [xcor] of bases with [color = red] first [ycor] of bases with [color = red]
 
-    ] [
-      if-else intention = "goto-base" [
-
-      ] [
-        if-else intention = "grab-minerals" [
-          let amount-taken (gather * 10)
-          if amount-taken > [minerals] of patch-here [
-            set amount-taken [minerals] of patch-here
-          ]
-          ask patch-here [ set minerals (minerals - amount-taken)  ]
-          set minerals-storage minerals-storage + amount-taken
-          if [minerals] of patch-here = 0 [
-            ask patch-here [ set pcolor green ]
-          ]
-        ] [
-          if-else intention = "unload-minerals" [
-            if-else base-dist < 1 [
+              ][
+              facexy first [xcor] of bases with [color = white] first [ycor] of bases with [color = white]
+              ]
+              fd 1
+            ][
+            if-else intention = "deposit-minerals"[
               ask bases-here [
                 set minerals-level minerals-level + [minerals-storage] of myself
               ]
               set minerals-storage 0
-            ] [
-              face base with [color = [color] of myself]
-              forward 1
+              ][
+              if-else intention = "deposit-food"[
+                ask bases-here [
+                  set food-level food-level + [food-storage] of myself
+                ]
+                set food-storage 0
+              ][
+                if-else intention = "get-food"[
+                  let food-place first food-places
+                  facexy first food-place last food-place
+                  fd 1
+                  ][
+                  if-else intention = "get-minerals" [
+                    let minerals-place first minerals-places
+                    facexy first minerals-place last minerals-place
+                    fd 1
+                    ][
+                    if-else intention = "explore" [
+                      ; facexy round random-xcor round random-ycor
+                      face explore-at
+                      fd 1
+                      ][
+                      if-else intention = "pick-up metals"[
+                        set minerals-storage max-minerals-capacity
+                        ask patch-here [
+                          set minerals (minerals - [minerals-storage] of myself)
+                        ]
+
+                        ][
+                        if-else intention = "pick-up food"[
+                          set food-storage max-food-capacity
+                          ask patch-here [
+                            set food (food - [food-storage] of myself)
+                          ]
+                        ][
+                          if-else intention = "reach-goal"[
+                            let enb first enemy-base
+                            facexy first enb last enb
+                            fd 1
+                          ] [
+                            if-else intention = "find-enemy-base"[
+                               ; let probstraight 0.5
+                               ; ifelse random-float 1 < probstraight [
+                               ;   fd 1
+                               ; ] [
+                               ;   rt random 360
+                               ;   lt random 360
+                               ;   fd 1
+                               ; ]
+
+                               ;facexy round random-xcor round random-ycor
+                               ;fd 1
+
+                               face explore-at
+                               fd 1
+                            ] [
+                              if intention = "send-terminators"[
+
+                                if-else in-team-A? [
+
+                                  let team-color red ;[color] of myself
+                                  let destination enemy-base
+                                  hatch-terminators 1 [
+                                    set shape "airplane"
+                                    setxy first [xcor] of bases with [color = team-color] first [ycor] of bases with [color = team-color]
+                                    set dest first destination
+
+                                    facexy first dest last dest
+
+                                  ]
+                                  ask bases with [color = team-color] [
+                                    set minerals-level (minerals-level - 20)
+                                  ]
+                                ][
+
+                                let team-color white ;[color] of myself
+                                let destination enemy-base
+                                hatch-terminators 1 [
+                                  set shape "airplane"
+                                  setxy first [xcor] of bases with [color = team-color] first [ycor] of bases with [color = team-color]
+                                  set dest first destination
+
+                                  facexy first dest last dest
+
+                                ]
+                                ask bases with [color = team-color] [
+                                  set minerals-level (minerals-level - 20)
+                                ]
+                                ]
+                            ;]
+                          ]
+                        ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
             ]
-          ] [
-            ; intention is xy
-            facexy first intention last intention
-            forward 1
           ]
         ]
       ]
-    ]
+
+
+  ]]]
+
+  ask terminators[
+    if-else round xcor = first dest and round ycor = last dest [
+      ask bases-here [
+        set health (health - 20)
+      ]
+      die
+    ] [ fd 1 ]
   ]
+
 end
 
 
+to send-messages
+  ask players with [length outbox != 0] [
+    ask other players with [color = [color] of myself] [
+      set inbox sentence inbox outbox
+      set inbox remove-duplicates inbox
+    ]
+  ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
+597
 10
-781
+1168
 602
-25
-25
+-1
+-1
 11.0
 1
 10
@@ -316,12 +622,12 @@ GRAPHICS-WINDOW
 0
 0
 1
--25
-25
--25
-25
 0
+50
 0
+50
+1
+1
 1
 ticks
 30.0
@@ -426,7 +732,7 @@ INPUTBOX
 101
 127
 map-name
-1
+2
 1
 0
 String
@@ -440,7 +746,7 @@ resource-growth-rate
 resource-growth-rate
 0
 100
-50
+9
 1
 1
 NIL
@@ -462,23 +768,23 @@ NIL
 HORIZONTAL
 
 MONITOR
-11
-508
-140
-553
-Desire player 1
+200
+75
+312
+120
+Desire player A
 [desire] of player 2
 17
 1
 11
 
 MONITOR
-12
-555
-117
-600
-Desire player 2
-[desire] of player 3
+202
+284
+307
+329
+Desire player B
+[desire] of player (2 + team_A_size)
 17
 1
 11
@@ -492,7 +798,7 @@ vision-radius
 vision-radius
 3
 30
-5
+12
 1
 1
 NIL
@@ -512,6 +818,177 @@ storage-capacity
 1
 NIL
 HORIZONTAL
+
+MONITOR
+201
+29
+324
+74
+intention player A
+[intention] of player 2
+17
+1
+11
+
+MONITOR
+201
+126
+593
+171
+Food places player A
+[food-places] of player 2
+17
+1
+11
+
+MONITOR
+201
+172
+593
+217
+Minerals places player A
+[minerals-places] of player 2
+17
+1
+11
+
+MONITOR
+319
+27
+436
+72
+Position player A
+[list round xcor round ycor] of player 2
+17
+1
+11
+
+MONITOR
+318
+76
+431
+121
+Hunger player A
+[hunger] of player 2
+17
+1
+11
+
+BUTTON
+117
+79
+180
+112
+step
+go
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+438
+27
+587
+72
+Food storage player A
+[food-storage] of player 2
+17
+1
+11
+
+MONITOR
+438
+75
+589
+120
+Minerals stor. player A
+[minerals-storage] of player 2
+17
+1
+11
+
+MONITOR
+202
+237
+322
+282
+Intention player B
+[intention] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+324
+236
+438
+281
+Position player B
+[list round xcor round ycor] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+440
+236
+587
+281
+Food storage player B
+[food-storage] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+323
+283
+434
+328
+Hunger player B
+[hunger] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+441
+284
+590
+329
+Minerals stor. player B
+[minerals-storage] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+202
+334
+593
+379
+Food places player B
+[food-places] of player (2 + team_A_size)
+17
+1
+11
+
+MONITOR
+201
+383
+592
+428
+Minerals places player B
+[minerals-places] of player (2 + team_A_size)
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
