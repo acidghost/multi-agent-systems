@@ -323,7 +323,7 @@ end
 ; --- Update desires ---
 to update-desires
   ask players [
-    if-else hunger < base-dist + 1 [
+    if-else hunger < (base-dist * food-decay) + 1 [
       set desire "eat"
     ] [
       let base-minerals [minerals-level] of bases with [color = [color] of myself]
@@ -345,7 +345,7 @@ to update-intentions
         if-else base-food-level > not-hungry [
           set intention "grab-food"
         ] [
-        if-else max-not-hungry > base-food-level [
+        if-else max-not-hungry * food-decay > base-food-level [
           set intention "get-food"
           ][
           set intention "wait-food"
@@ -761,7 +761,7 @@ food-decay
 food-decay
 1
 6
-1
+4
 1
 1
 NIL
